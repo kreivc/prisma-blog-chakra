@@ -32,7 +32,7 @@ export const getStaticProps: GetStaticProps = async () => {
 	});
 	return {
 		props: { feed },
-		// revalidate: 1,
+		revalidate: 1,
 	};
 };
 
