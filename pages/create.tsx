@@ -35,7 +35,7 @@ const Post = () => {
 		e.preventDefault();
 		try {
 			const body = { title, content };
-			await fetch("http://localhost:3000/api/post", {
+			await fetch(`${process.env.NEXTAUTH_URL}/api/post`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body),

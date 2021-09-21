@@ -1,28 +1,36 @@
 /* eslint-disable react-hooks/rules-of-hooks */
-import { GetStaticProps } from "next";
-import Layout from "../components/Layout";
 import React from "react";
+import { GetServerSideProps } from "next";
+import Layout from "../components/Layout";
+import { useSession, getSession } from "next-auth/client";
 import {
+	Avatar,
 	Box,
 	Container,
 	Divider,
+	Flex,
 	Heading,
 	HStack,
 	Link,
 	SimpleGrid,
 	Stack,
 	Text,
-} from "@chakra-ui/layout";
-import { useColorModeValue } from "@chakra-ui/system";
+	useColorModeValue,
+} from "@chakra-ui/react";
 import Router from "next/router";
-import { useSession } from "next-auth/client";
-import { Avatar, Spinner } from "@chakra-ui/react";
 import prisma from "../lib/prisma";
 
-export const getStaticProps: GetStaticProps = async () => {
-	const feed = await prisma.post.findMany({
+export const getServerSideProps: GetServerSideProps = async ({ req, res }) => {
+	const session = await getSession({ req });
+	if (!session) {
+		res.statusCode = 403;
+		return { props: { drafts: [] } };
+	}
+
+	const drafts = await prisma.post.findMany({
 		where: {
-			published: true,
+			author: { email: session.user.email },
+			published: false,
 		},
 		include: {
 			author: {
@@ -31,9 +39,12 @@ export const getStaticProps: GetStaticProps = async () => {
 		},
 	});
 	return {
-		props: { feed },
-		// revalidate: 1,
+		props: { drafts },
 	};
+};
+
+type Props = {
+	drafts: PostProps[];
 };
 
 export type PostProps = {
@@ -48,10 +59,6 @@ export type PostProps = {
 	createdAt: Date;
 };
 
-type Props = {
-	feed: PostProps[];
-};
-
 type BlogAuthorProps = {
 	date: Date;
 	name: string;
@@ -60,11 +67,7 @@ type BlogAuthorProps = {
 export const BlogAuthor: React.FC<BlogAuthorProps> = (props) => {
 	const [session, loading] = useSession();
 	if (loading) {
-		return (
-			<Stack direction="row" spacing={4}>
-				<Spinner size="lg" />
-			</Stack>
-		);
+		return <div>Loading ...</div>;
 	}
 
 	return (
@@ -83,7 +86,31 @@ export const BlogAuthor: React.FC<BlogAuthorProps> = (props) => {
 	);
 };
 
-const Blog: React.FC<Props> = (props) => {
+const Draft: React.FC<Props> = (props) => {
+	const [session] = useSession();
+
+	if (!session) {
+		return (
+			<Layout>
+				<Flex
+					minH={"100vh"}
+					align={"center"}
+					justify={"center"}
+					bg={useColorModeValue("gray.50", "gray.800")}
+				>
+					<Stack spacing={8} mx={"auto"} maxW={"lg"} py={12} px={6}>
+						<Stack align={"center"}>
+							<Heading fontSize={"4xl"}>Sign in to your account</Heading>
+							<Text fontSize={"lg"} color={"gray.600"}>
+								to see drafts <Link color={"blue.400"}></Link> ✌️
+							</Text>
+						</Stack>
+					</Stack>
+				</Flex>
+			</Layout>
+		);
+	}
+
 	return (
 		<Layout>
 			<Container maxW="container.xl" py={12}>
@@ -99,17 +126,18 @@ const Blog: React.FC<Props> = (props) => {
 							alignSelf={"flex-start"}
 							rounded={"md"}
 						>
-							{props.feed.length !== 0 ? "Public Feed" : "No Feed"}
+							{props.drafts.length !== 0 ? "My Drafts" : "No Drafts"}
 						</Text>
 					</Stack>
 				</SimpleGrid>
 			</Container>
 
-			{props.feed.map((post) => (
+			{props.drafts.map((post) => (
 				<Container
 					key={post.id}
 					maxW="container.xl"
 					onClick={() => Router.push("/p/[id]", `/p/${post.id}`)}
+					cursor="pointer"
 				>
 					<Box
 						marginTop={{ base: "1", sm: "5" }}
@@ -129,16 +157,14 @@ const Blog: React.FC<Props> = (props) => {
 									{post.title}
 								</Link>
 							</Heading>
-							<Link textDecoration="none" _hover={{ textDecoration: "none" }}>
-								<Text
-									as="p"
-									marginTop="2"
-									color={useColorModeValue("gray.700", "gray.200")}
-									fontSize="lg"
-								>
-									{post.content}
-								</Text>
-							</Link>
+							<Text
+								as="p"
+								marginTop="2"
+								color={useColorModeValue("gray.700", "gray.200")}
+								fontSize="lg"
+							>
+								{post.content}
+							</Text>
 							<BlogAuthor name={post.author.name} date={post.createdAt} />
 						</Box>
 					</Box>
@@ -149,4 +175,4 @@ const Blog: React.FC<Props> = (props) => {
 	);
 };
 
-export default Blog;
+export default Draft;
